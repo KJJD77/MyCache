@@ -18,25 +18,8 @@
 ```
 Ubuntu 22.04 LTS
 ```
-## 编译
-创建一个build文件夹并进入
-```
-mkdir build && cd build
-```
-生成构建文件
-```
-cmake ..
-```
-构建项目
-```
-make
-```
-如果要清理生成的可执行文件
-```
-make clean
-```
 
 ## 运行
 ```
-./main
+./test
 ```
