@@ -66,7 +66,7 @@ namespace MyCache
         {
             if (this->capacity_ <= 0)
                 return;
-                //上锁
+            // 上锁
             std::lock_guard<std::mutex> lock(mutex_);
             auto it = nodeMap_.find(key);
             if (it != nodeMap_.end())
@@ -80,31 +80,30 @@ namespace MyCache
         bool get(Key key, Value &value) override
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            auto it=nodeMap_.find(key);
-            if(it==nodeMap_.end())
+            auto it = nodeMap_.find(key);
+            if (it == nodeMap_.end())
                 return false;
             it->second->increasementAccessCount();
-            // std::cerr<<it->second->getAccessCount();
             moveToMostRecent(it->second);
-            value=it->second->getValue();
+            value = it->second->getValue();
             return true;
         }
 
         Value get(Key key) override
         {
             Value value{};
-            get(key,value);
+            get(key, value);
             return value;
         }
 
         void remove(Key key)
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            auto it=nodeMap_.find(key);
-            if(it==nodeMap_.end())
+            auto it = nodeMap_.find(key);
+            if (it == nodeMap_.end())
                 return;
             removeNode(it->second);
-            nodeMap_.erase(it);    
+            nodeMap_.erase(it);
         }
 
     private:
@@ -138,23 +137,23 @@ namespace MyCache
         }
         void insertNode(NodePtr node)
         {
-            node->next_=dummyTail_;
-            node->prev_=dummyTail_->prev_;
-            dummyTail_->prev_.lock()->next_=node;
+            node->next_ = dummyTail_;
+            node->prev_ = dummyTail_->prev_;
+            dummyTail_->prev_.lock()->next_ = node;
             dummyTail_->prev_ = node;
         }
         void addNewNode(const Key &key, const Value &value)
         {
-            if(nodeMap_.size()>=capacity_)
+            if (nodeMap_.size() >= capacity_)
                 evictLeastRecent();
-            NodePtr newNode=std::make_shared<LruNodeType>(key,value);
+            NodePtr newNode = std::make_shared<LruNodeType>(key, value);
             insertNode(newNode);
             nodeMap_[key] = newNode;
         }
-        //驱逐链表表头
+        // 驱逐链表表头
         void evictLeastRecent()
         {
-            NodePtr leastRecent =  dummyHead_->next_;
+            NodePtr leastRecent = dummyHead_->next_;
             removeNode(leastRecent);
             nodeMap_.erase(leastRecent->getKey());
         }
@@ -165,5 +164,67 @@ namespace MyCache
         NodePtr dummyHead_;
         // 虚拟尾节点
         NodePtr dummyTail_;
+    };
+    /* LRU-k算法是对LRU算法的改进，基础的LRU算法被访问数据进入缓存队列只需要访问(put、get)一次就行，
+    但是现在需要被访问k（大小自定义）次才能被放入缓存中，基础的LRU算法可以看成是LRU-1。 */
+    template <typename Key, typename Value>
+    class LruKCache : public LruCache<Key, Value>
+    {
+    public:
+        LruKCache(int capacity, int historyCapacity, int k) : LruCache<Key, Value>(capacity), historyList_(std::make_unique<LruCache<Key, size_t>>(historyCapacity)), k_(k) {}
+        
+        Value get(Key key)override{
+            Value value{};
+            bool inMainCache=LruCache<Key,Value>::get(key,value);
+            if(inMainCache)
+            {
+                return value;
+            }
+            size_t historyCount=historyList_->get(key);
+            historyCount++;
+            historyList_->put(key,historyCount);
+            if(historyCount>=k_)
+            {
+                auto it=historyValueMap_.find(key);
+                if(it!=historyValueMap_.end())
+                {
+                    Value storedValue=it->second;
+                    historyList_->remove(key);
+                    historyValueMap_.erase(it);
+                    //添加到主缓存
+                    LruCache<Key,Value>::put(key,storedValue);
+                    return storedValue;
+                }
+            }
+            return value;
+        }
+
+        void put(Key key,Value value)override{
+            Value existingValue{};
+            bool inMainCache=LruCache<Key,Value>::get(key,existingValue);
+            if(inMainCache)
+            {
+                LruCache<Key,Value>::put(key,value);
+                return;
+            }
+
+            size_t historyCount=historyList_->get(key);
+            historyCount++;
+            //存入新值
+            historyValueMap_[key]=value;
+            historyList_->put(key,historyCount);
+            if(historyCount>=k_)
+            {
+                //放入主缓存
+                historyValueMap_.erase(key);
+                historyList_->remove(key);
+                LruCache<Key,Value>::put(key,value);
+            }
+        }
+    private:
+        // k_代表自定义大小
+        int k_;
+        std::unique_ptr<LruCache<Key, size_t>> historyList_;
+        std::unordered_map<Key, Value> historyValueMap_; // 存取未到K次的数据
     };
 }
