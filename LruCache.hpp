@@ -4,8 +4,13 @@
 #include <memory>
 #include <unordered_map>
 #include <mutex>
-#include <iostream>
+#include <vector>
+#include <thread>
+#include <cmath>
+// #include <iostream>
 #include <condition_variable>
+
+
 namespace MyCache
 {
     template <typename Key, typename Value>
@@ -227,4 +232,47 @@ namespace MyCache
         std::unique_ptr<LruCache<Key, size_t>> historyList_;
         std::unordered_map<Key, Value> historyValueMap_; // 存取未到K次的数据
     };
+    template<typename Key,typename Value>
+    class HashLruCache{
+        public:
+
+            HashLruCache(size_t capacity,int sliceNum):capacity_(capacity),sliceNum_(sliceNum_>0?sliceNum_:std::thread::hardware_concurrency()){
+                int sliceSize=std::ceil(capacity/static_cast<double>(sliceNum_));
+                for(int i=0;i<sliceNum_;i++)
+                    lruSliceCaches_.emplace_back(new LruCache<Key,Value>(sliceSize));
+            }
+
+            void put(Key key, Value value)
+            {
+                // 获取key的hash值，并计算出对应的分片索引
+                size_t sliceIndex = Hash(key) % sliceNum_;
+                lruSliceCaches_[sliceIndex]->put(key, value);
+            }
+
+            Value get(Key key, Value &value)
+            {
+                size_t hashKey=Hash(key)%sliceNum_;
+                lruSliceCaches_[hashKey]->get(key,value);
+                return value;
+            }
+            Value get(Key key)
+            {
+                size_t hashKey=Hash(key)%sliceNum_;
+                Value value{};
+                get(key,value);
+                return value;
+            }
+        private:
+
+            size_t Hash(Key key)
+            {
+                std::hash<Key> hashFunc;
+                return hashFuck(key);
+            }
+
+            size_t capacity_;//容量
+            int sliceNum_;//切片数量
+            std::vector<std::unique_ptr<LruCache<Key,Value>>> lruSliceCaches_;
+    };
+
 }
