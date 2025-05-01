@@ -118,10 +118,10 @@ namespace MyCache
         bool get(Key key, Value &value) override
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            auto it=nodeMap_.find(key);
-            if(it!=nodeMap_.end())
+            auto it = nodeMap_.find(key);
+            if (it != nodeMap_.end())
             {
-                getInternal(it->second,value);
+                getInternal(it->second, value);
                 return true;
             }
             return false;
@@ -277,4 +277,51 @@ namespace MyCache
             minFreq_ = 1;
     }
 
+    template <typename Key, typename Value>
+    class HashLfuCache
+    {
+    public:
+        HashLfuCache(int capacity, int sliceNum, int maxAverageNum = 10) : capacity_(capacity), sliceNum_(sliceNum > 0 ? sliceNum : std::thread::hardware_concurrency())
+        {
+            int sliceSize=std::ceil(capacity_/static_cast<double>(sliceNum_));
+            for(int i=0;i<sliceNum_;i++)
+            {
+                lfuSliceCaches_.emplace_back(new LfuCache<Key,Value>(sliceSize,maxAverageNum));
+            }
+        }
+        void put(Key key,Value value)
+        {
+             // 根据key找出对应的lfu分片
+             size_t sliceIndex=Hash(key)%sliceNum_;
+             lfuSliceCaches_[sliceIndex]->put(key,value);
+        }
+        bool get(Key key, Value &value)
+        {
+            // 根据key找出对应的lfu分片
+            size_t sliceIndex = Hash(key) % sliceNum_;
+            return lfuSliceCaches_[sliceIndex]->get(key, value);
+        }
+        Value get(Key key)
+        {
+            Value value;
+            get(key, value);
+            return value;
+        }
+        void purge()
+        {
+            for (auto &lfuSliceCache : lfuSliceCaches_)
+                lfuSliceCache->purge();
+        }
+    private:
+        size_t Hash(Key key)
+        {
+            std::hash<Key> hashFunc;
+            return hashFunc(key);
+        }
+
+        int capacity_; // 容量
+        int sliceNum_; // 缓存分片数量
+        std::vector<std::unique_ptr<LfuCache<Key, Value>>> lfuSliceCaches_;
+        ; //// 缓存lfu分片容器
+    };
 }

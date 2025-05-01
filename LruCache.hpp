@@ -274,5 +274,7 @@ namespace MyCache
             int sliceNum_;//切片数量
             std::vector<std::unique_ptr<LruCache<Key,Value>>> lruSliceCaches_;
     };
+    
+
 
 }
