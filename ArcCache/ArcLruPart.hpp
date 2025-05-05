@@ -67,11 +67,11 @@ namespace MyCache
         {
             if (capacity_ <= 0)
                 return false;
-            if (ghostCache_.size() >= ghostCapacity_)
+            if (mainCache_.size() >= capacity_)
             {
                 evictLeastRecent();
             }
-            ghostCapacity_--;
+            capacity_;
             return true;
         }
 
