@@ -71,7 +71,7 @@ namespace MyCache
             {
                 evictLeastRecent();
             }
-            capacity_;
+            capacity_--;
             return true;
         }
 
