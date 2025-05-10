@@ -16,10 +16,16 @@
 
 ## 系统环境 
 ```
-Ubuntu 22.04 LTS
+Ubuntu 20.04 LTS
 ```
 
 ## 运行
 ```
-./test
+makedir build&&cd build
+
+cmake ..
+
+make
+
+./MyCacheTest
 ```
